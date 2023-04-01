@@ -49,8 +49,8 @@ class SquaredPerspectiveNet(torch.nn.Module):
         stm_pov = self.perspective(board_stm_sparse)
         nstm_pov = self.perspective(board_nstm_sparse)
 
-        x = torch.cat((stm_pov, nstm_pov), dim=1)
-        hidden = torch.clamp(x * x, 0, 1)
+        x = torch.clamp(torch.cat((stm_pov, nstm_pov), dim=1), 0, 1)
+        hidden = x * x
 
         return torch.sigmoid(self.out(hidden))
 

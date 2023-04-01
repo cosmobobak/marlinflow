@@ -3,7 +3,7 @@ import torch
 from dataloader import Batch, InputFeatureSet
 
 
-class NnBoard768(torch.nn.Module):
+class PerspectiveNet(torch.nn.Module):
     def __init__(self, ft_out: int):
         super().__init__()
         self.ft = torch.nn.Linear(768, ft_out)

@@ -13,6 +13,8 @@ from model import (
     NnHalfKACuda,
     NnHalfKP,
     NnHalfKPCuda,
+    SquaredPerspectiveNet,
+    DeepPerspectiveNet,
 )
 from time import time
 
@@ -150,7 +152,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = PerspectiveNet(512).to(DEVICE)
+    model = SquaredPerspectiveNet(512).to(DEVICE)
 
     data_path = pathlib.Path(args.data_root)
     paths = list(map(str, data_path.glob("*.bin")))

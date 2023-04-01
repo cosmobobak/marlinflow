@@ -19,7 +19,9 @@ from time import time
 import torch
 from trainlog import TrainLog
 
+print("Imports finished")
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(f"Using device {DEVICE}")
 
 LOG_ITERS = 10_000_000
 
@@ -148,7 +150,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = NnHalfKPCuda(128).to(DEVICE)
+    model = NnBoard768(512).to(DEVICE)
 
     data_path = pathlib.Path(args.data_root)
     paths = list(map(str, data_path.glob("*.bin")))

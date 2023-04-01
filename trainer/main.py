@@ -8,7 +8,7 @@ import pathlib
 from dataloader import BatchLoader
 from model import (
     NnBoard768Cuda,
-    NnBoard768,
+    PerspectiveNet,
     NnHalfKA,
     NnHalfKACuda,
     NnHalfKP,
@@ -150,7 +150,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = NnBoard768(512).to(DEVICE)
+    model = PerspectiveNet(512).to(DEVICE)
 
     data_path = pathlib.Path(args.data_root)
     paths = list(map(str, data_path.glob("*.bin")))

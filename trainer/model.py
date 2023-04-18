@@ -58,6 +58,37 @@ class SquaredPerspectiveNet(torch.nn.Module):
         return InputFeatureSet.BOARD_768
 
 
+class SkipPerspectiveNet(torch.nn.Module):
+    def __init__(self, ft_out: int):
+        super().__init__()
+        self.perspective = torch.nn.Linear(768, ft_out)
+        self.out = torch.nn.Linear(ft_out * 2, 1)
+        self.psqt = torch.nn.Linear(768, 1)
+
+    def forward(self, batch: Batch):
+        stm_indices = batch.stm_indices.reshape(-1, 2).T
+        nstm_indices = batch.nstm_indices.reshape(-1, 2).T
+        board_stm_sparse = torch.sparse_coo_tensor(
+            stm_indices, batch.values, (batch.size, 768)
+        ).to_dense()
+        board_nstm_sparse = torch.sparse_coo_tensor(
+            nstm_indices, batch.values, (batch.size, 768)
+        ).to_dense()
+
+        stm_psqt = self.psqt(board_stm_sparse)
+        nstm_psqt = self.psqt(board_nstm_sparse)
+
+        stm_pov = self.perspective(board_stm_sparse)
+        nstm_pov = self.perspective(board_nstm_sparse)
+
+        x = torch.clamp(torch.cat((stm_pov, nstm_pov), dim=1), 0, 1)
+        hidden = x * x
+
+        return torch.sigmoid(self.out(hidden) + stm_psqt + nstm_psqt)
+
+    def input_feature_set(self) -> InputFeatureSet:
+        return InputFeatureSet.BOARD_768
+
 class DeepPerspectiveNet(torch.nn.Module):
     def __init__(self, ft_out: int, layer_2: int):
         super().__init__()
@@ -81,38 +112,6 @@ class DeepPerspectiveNet(torch.nn.Module):
         x = torch.clamp(torch.cat((stm_pov, nstm_pov), dim=1), 0, 1)
         x = x * x
         x = torch.clamp(self.l2(x), 0, 1)
-
-        return torch.sigmoid(self.out(x))
-
-    def input_feature_set(self) -> InputFeatureSet:
-        return InputFeatureSet.BOARD_768
-
-
-class DeeperPerspectiveNet(torch.nn.Module):
-    def __init__(self, ft_out: int, layer_2: int, layer_3: int):
-        super().__init__()
-        self.perspective = torch.nn.Linear(768, ft_out)
-        self.l2 = torch.nn.Linear(ft_out * 2, layer_2)
-        self.l3 = torch.nn.Linear(layer_2, layer_3)
-        self.out = torch.nn.Linear(layer_3, 1)
-
-    def forward(self, batch: Batch):
-        stm_indices = batch.stm_indices.reshape(-1, 2).T
-        nstm_indices = batch.nstm_indices.reshape(-1, 2).T
-        board_stm_sparse = torch.sparse_coo_tensor(
-            stm_indices, batch.values, (batch.size, 768)
-        ).to_dense()
-        board_nstm_sparse = torch.sparse_coo_tensor(
-            nstm_indices, batch.values, (batch.size, 768)
-        ).to_dense()
-
-        stm_pov = self.perspective(board_stm_sparse)
-        nstm_pov = self.perspective(board_nstm_sparse)
-
-        x = torch.clamp(torch.cat((stm_pov, nstm_pov), dim=1), 0, 1)
-        x = x * x
-        x = torch.clamp(self.l2(x), 0, 1)
-        x = torch.clamp(self.l3(x), 0, 1)
 
         return torch.sigmoid(self.out(x))
 

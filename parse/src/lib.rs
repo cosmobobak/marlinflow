@@ -71,7 +71,7 @@ pub unsafe extern "C" fn file_reader_new(path: *const c_char) -> *mut FileReader
 
 #[no_mangle]
 pub unsafe extern "C" fn file_reader_drop(reader: *mut FileReader) {
-    Box::from_raw(reader);
+    drop(Box::from_raw(reader));
 }
 
 #[repr(C)]

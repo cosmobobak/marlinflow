@@ -2,8 +2,16 @@ import torch
 
 from dataloader import Batch, InputFeatureSet
 
-
 class PerspectiveNet(torch.nn.Module):
+    """
+    A "Perspective Network".
+    Uses a linear layer to transform the board into a vector of size ft_out.
+    It does this for two copies of the board, one from the perspective of the side to move,
+    and one from the perspective of the side not to move.
+    It then concatenates the two vectors, side to move first, activates them with clipped ReLU,
+    and then passes them through a final linear layer to get the evaluation.
+    """
+
     def __init__(self, ft_out: int):
         super().__init__()
         self.perspective = torch.nn.Linear(768, ft_out)
@@ -29,8 +37,11 @@ class PerspectiveNet(torch.nn.Module):
     def input_feature_set(self) -> InputFeatureSet:
         return InputFeatureSet.BOARD_768
 
-
 class SquaredPerspectiveNet(torch.nn.Module):
+    """
+    The same as PerspectiveNet, but the activations of clipped ReLU are squared.
+    """
+
     def __init__(self, ft_out: int):
         super().__init__()
         self.perspective = torch.nn.Linear(768, ft_out)
@@ -59,6 +70,10 @@ class SquaredPerspectiveNet(torch.nn.Module):
 
 
 class SkipPerspectiveNet(torch.nn.Module):
+    """
+    The same as SquaredPerspectiveNet, but a skip-connection from the input to the output is added.
+    """
+
     def __init__(self, ft_out: int):
         super().__init__()
         self.perspective = torch.nn.Linear(768, ft_out)

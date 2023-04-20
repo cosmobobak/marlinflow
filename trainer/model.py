@@ -99,7 +99,7 @@ class SkipPerspectiveNet(torch.nn.Module):
         x = torch.clamp(torch.cat((stm_pov, nstm_pov), dim=1), 0, 1)
         hidden = x * x
 
-        return torch.sigmoid(self.out(hidden) + stm_psqt + nstm_psqt)
+        return torch.sigmoid(self.out(hidden) + stm_psqt - nstm_psqt)
 
     def input_feature_set(self) -> InputFeatureSet:
         return InputFeatureSet.BOARD_768

@@ -81,7 +81,7 @@ class SkipPerspectiveNet(torch.nn.Module):
         # the output layer, transforms the vector of size ft_out * 2 into a scalar.
         self.out = torch.nn.Linear(ft_out * 2, 1)
         # the skip-connection layer, transforms the board into a scalar linearly.
-        self.psqt = torch.nn.Linear(768, 1)
+        self.psqt = torch.nn.Linear(768, 1, bias=False)
 
     def forward(self, batch: Batch):
         stm_indices = batch.stm_indices.reshape(-1, 2).T
@@ -93,9 +93,9 @@ class SkipPerspectiveNet(torch.nn.Module):
             nstm_indices, batch.values, (batch.size, 768)
         ).to_dense()
 
-        # get two piece-square table values from each perspective.
+        # get the linear evaluation from the side to move's perspective.
+        # (we could get it from both, but linearity would make it redundant.)
         stm_psqt = self.psqt(board_stm_sparse)
-        nstm_psqt = self.psqt(board_nstm_sparse)
 
         # get the heavy feature vectors from each perspective.
         stm_pov = self.perspective(board_stm_sparse)
@@ -105,8 +105,8 @@ class SkipPerspectiveNet(torch.nn.Module):
         x = torch.clamp(torch.cat((stm_pov, nstm_pov), dim=1), 0, 1)
         hidden = x * x
 
-        # add the two piece-square table values to the output of the hidden layer.
-        return torch.sigmoid(self.out(hidden) + stm_psqt - nstm_psqt)
+        # add the linear evaluation to the hidden layer, and pass it through the output layer.
+        return torch.sigmoid( self.out(hidden) + stm_psqt )
 
     def input_feature_set(self) -> InputFeatureSet:
         return InputFeatureSet.BOARD_768

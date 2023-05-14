@@ -68,49 +68,6 @@ class SquaredPerspectiveNet(torch.nn.Module):
     def input_feature_set(self) -> InputFeatureSet:
         return InputFeatureSet.BOARD_768
 
-
-class SkipPerspectiveNet(torch.nn.Module):
-    """
-    The same as SquaredPerspectiveNet, but a skip-connection from the input to the output is added.
-    """
-
-    def __init__(self, ft_out: int):
-        super().__init__()
-        # the feature transformer, transforms the board into a vector of size ft_out.
-        self.perspective = torch.nn.Linear(768, ft_out)
-        # the output layer, transforms the vector of size ft_out * 2 into a scalar.
-        self.out = torch.nn.Linear(ft_out * 2, 1)
-        # the skip-connection layer, transforms the board into a scalar linearly.
-        self.psqt = torch.nn.Linear(768, 1, bias=False)
-
-    def forward(self, batch: Batch):
-        stm_indices = batch.stm_indices.reshape(-1, 2).T
-        nstm_indices = batch.nstm_indices.reshape(-1, 2).T
-        board_stm_sparse = torch.sparse_coo_tensor(
-            stm_indices, batch.values, (batch.size, 768)
-        ).to_dense()
-        board_nstm_sparse = torch.sparse_coo_tensor(
-            nstm_indices, batch.values, (batch.size, 768)
-        ).to_dense()
-
-        # get the linear evaluation from the side to move's perspective.
-        # (we could get it from both, but linearity would make it redundant.)
-        stm_psqt = self.psqt(board_stm_sparse)
-
-        # get the heavy feature vectors from each perspective.
-        stm_pov = self.perspective(board_stm_sparse)
-        nstm_pov = self.perspective(board_nstm_sparse)
-
-        # concatenate the two vectors, side to move first, activate and square.
-        x = torch.clamp(torch.cat((stm_pov, nstm_pov), dim=1), 0, 1)
-        hidden = x * x
-
-        # add the linear evaluation to the hidden layer, and pass it through the output layer.
-        return torch.sigmoid( self.out(hidden) + stm_psqt )
-
-    def input_feature_set(self) -> InputFeatureSet:
-        return InputFeatureSet.BOARD_768
-
 class DeepPerspectiveNet(torch.nn.Module):
     def __init__(self, ft_out: int, layer_2: int):
         super().__init__()
@@ -141,7 +98,12 @@ class DeepPerspectiveNet(torch.nn.Module):
         return InputFeatureSet.BOARD_768
 
 
-class NnHalfKP(torch.nn.Module):
+class HalfKPNet(torch.nn.Module):
+    """
+    Uses king buckets to choose subnets.
+    Features are of the form (our_king_sq, piece_sq, piece_type, piece_colour),
+    and does not include the enemy king. (so piece_type is never a king)
+    """
     def __init__(self, ft_out: int):
         super().__init__()
         self.ft = torch.nn.Linear(40960, ft_out)
@@ -181,7 +143,12 @@ class NnHalfKP(torch.nn.Module):
         return InputFeatureSet.HALF_KP
 
 
-class NnHalfKA(torch.nn.Module):
+class HalfKANet(torch.nn.Module):
+    """
+    Uses king buckets to choose subnets.
+    Features are of the form (our_king_sq, piece_sq, piece_type, piece_colour),
+    does include the enemy king. (so piece_type can be a king)
+    """
     def __init__(self, ft_out: int):
         super().__init__()
         self.ft = torch.nn.Linear(49152, ft_out)

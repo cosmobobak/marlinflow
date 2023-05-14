@@ -52,29 +52,41 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     println!("White king positions:");
     let (idx, max) = white_king_positions.iter().enumerate().max_by_key(|(_, v)| **v).unwrap();
     let idx_sq = Square::index(idx);
-    println!("Most: {} on {}", max, idx_sq);
+    let pcnt = *max as f64 / positions as f64 * 100.0;
+    println!("Most: {} on {} ({:.3}%)", max, idx_sq, pcnt);
     let (idx, min) = white_king_positions.iter().enumerate().min_by_key(|(_, v)| **v).unwrap();
     let idx_sq = Square::index(idx);
-    println!("Least: {} on {}", min, idx_sq);
+    let pcnt = *min as f64 / positions as f64 * 100.0;
+    println!("Least: {} on {} ({:.3}%)", min, idx_sq, pcnt);
     println!("Black king positions:");
     let (idx, max) = black_king_positions.iter().enumerate().max_by_key(|(_, v)| **v).unwrap();
     let idx_sq = Square::index(idx);
-    println!("Most: {} on {}", max, idx_sq);
+    let pcnt = *max as f64 / positions as f64 * 100.0;
+    println!("Most: {} on {} ({:.3}%)", max, idx_sq, pcnt);
     let (idx, min) = black_king_positions.iter().enumerate().min_by_key(|(_, v)| **v).unwrap();
     let idx_sq = Square::index(idx);
-    println!("Least: {} on {}", min, idx_sq);
+    let pcnt = *min as f64 / positions as f64 * 100.0;
+    println!("Least: {} on {} ({:.3}%)", min, idx_sq, pcnt);
     println!("Pieces on board:");
     let mean = pieces_on_board.iter().enumerate().map(|(i, v)| i * v).sum::<usize>() as f64 / positions as f64;
-    println!("Mean: {}", mean);
-    let (idx, max) = pieces_on_board.iter().enumerate().max_by_key(|(_, v)| **v).unwrap();
-    println!("Most: {} pieces", idx);
-    let (idx, min) = pieces_on_board[2..].iter().enumerate().min_by_key(|(_, v)| **v).unwrap();
-    println!("Least: {} pieces", idx);
+    println!("Mean: {:.2}", mean);
+    let mut for_sorting = pieces_on_board.iter().copied().enumerate().collect::<Vec<_>>();
+    for_sorting.sort_by_key(|(_, v)| *v);
+    let median = for_sorting[for_sorting.len() / 2];
+    println!("Median: {} ({:.2}%)", median.0, median.1 as f64 / positions as f64 * 100.0);
+    println!("Distribution:");
+    for (i, v) in pieces_on_board.iter().enumerate() {
+        let pcnt = *v as f64 / positions as f64 * 100.0;
+        println!("{}: {} ({:.1}%)", i, v, pcnt);
+    }
+    for (i, v) in pieces_on_board.iter().enumerate().skip(2) {
+        print!("{}: {} ", i, v);
+    }
     let mean_mvcnt = movecount.iter().enumerate().map(|(i, v)| i * v).sum::<usize>() as f64 / positions as f64;
-    println!("Mean movecount: {}", mean_mvcnt);
+    println!("Mean movecount: {:.2}", mean_mvcnt);
     println!("Win/draw/loss:");
-    println!("Win: {}%", win_draw_loss[0] as f64 / positions as f64 * 100.0);
-    println!("Draw: {}%", win_draw_loss[1] as f64 / positions as f64 * 100.0);
-    println!("Loss: {}%", win_draw_loss[2] as f64 / positions as f64 * 100.0);
+    println!("Win:  {:.2}%", win_draw_loss[0] as f64 / positions as f64 * 100.0);
+    println!("Draw: {:.2}%", win_draw_loss[1] as f64 / positions as f64 * 100.0);
+    println!("Loss: {:.2}%", win_draw_loss[2] as f64 / positions as f64 * 100.0);
     Ok(())
 }

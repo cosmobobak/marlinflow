@@ -48,6 +48,7 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
             let _ = std::io::stdout().flush();
         }
     }
+    println!();
     println!("{} positions", positions);
     println!("White king positions:");
     let (idx, max) = white_king_positions.iter().enumerate().max_by_key(|(_, v)| **v).unwrap();

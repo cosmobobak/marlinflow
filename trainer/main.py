@@ -9,13 +9,12 @@ from dataloader import BatchLoader
 from model import (
     NnBoard768Cuda,
     PerspectiveNet,
-    NnHalfKA,
+    HalfKANet,
     NnHalfKACuda,
-    NnHalfKP,
+    HalfKPNet,
     NnHalfKPCuda,
     SquaredPerspectiveNet,
     DeepPerspectiveNet,
-    SkipPerspectiveNet,
 )
 from time import time
 
@@ -153,7 +152,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = SquaredPerspectiveNet(512).to(DEVICE)
+    model = HalfKANet(64).to(DEVICE)
 
     data_path = pathlib.Path(args.data_root)
     paths = list(map(str, data_path.glob("*.bin")))

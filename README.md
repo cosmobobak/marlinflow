@@ -59,7 +59,7 @@ python main.py       \
 
 The trainer will output a number of files in the `nn/` directory - files of the form `net0001_X` are saved state_dict files, which you can ignore (unless you're aiming to resume a half-completed training run) - `net0001.json` is what you're interested in: a JSON file containing the final weights of the network. 
 
-The trainer will also output a record of losses in the `runs/` directory. In order to use the network, you will need to convert the JSON file into a more usable format, and you will almost certainly want to quantise it. For simple perspective networks, this can be done with [nnue-jsontobin](https://github.com/cosmobobak/nnue-jsontobin), while for more complex networks like HalfKP and HalfKA (or ones you have designed yourself!) you will need to employ some elbow grease.
+In order to use the network, you will need to convert the JSON file into a more usable format, and you will almost certainly want to quantise it. For simple perspective networks, this can be done with [nnue-jsontobin](https://github.com/cosmobobak/nnue-jsontobin), while for more complex networks like HalfKP and HalfKA (or ones you have designed yourself!) you will need to employ some elbow grease.
 
 # Getting Data
 To convert a file in the marlinflow text format into a binary data file, use marlinflow-utils, which is built in much the same way as the parser:

@@ -158,7 +158,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = SquaredPerspectiveNet(1024).to(DEVICE)
+    model = SquaredPerspectiveNet(768).to(DEVICE)
     if args.resume is not None:
         model.load_state_dict(torch.load(args.resume))
 

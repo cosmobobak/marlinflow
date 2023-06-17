@@ -151,8 +151,11 @@ class HalfKANet(torch.nn.Module):
     """
     def __init__(self, ft_out: int):
         super().__init__()
+        # the bucketed feature transformer (768 * 64 = 49152)
         self.ft = torch.nn.Linear(49152, ft_out)
+        # the factoriser - helps with learning by generalising across buckets
         self.fft = torch.nn.Linear(768, ft_out)
+        # the final layer
         self.out = torch.nn.Linear(ft_out * 2, 1)
 
     def forward(self, batch: Batch):
@@ -165,6 +168,8 @@ class HalfKANet(torch.nn.Module):
             nstm_indices, batch.values, (batch.size, 49152)
         )
 
+        # create a version of the features that ignores the king position,
+        # to feed into the factoriser
         v_stm_indices = torch.clone(stm_indices)
         v_nstm_indices = torch.clone(nstm_indices)
         v_stm_indices[1][:] %= 768
@@ -176,9 +181,14 @@ class HalfKANet(torch.nn.Module):
             v_nstm_indices, batch.values, (batch.size, 768)
         ).to_dense()
 
+        # pass through the bucketed feature transformer and the factoriser
+        # these are linear layers, so the factoriser could be removed -
+        # it's only here to help with learning.
         stm_ft = self.ft(board_stm_sparse) + self.fft(v_board_stm_sparse)
         nstm_ft = self.ft(board_nstm_sparse) + self.fft(v_board_nstm_sparse)
 
+        # concatenate the two vectors, side to move first, and
+        # activate with clipped ReLU.
         hidden = torch.clamp(torch.cat((stm_ft, nstm_ft), dim=1), 0, 1)
 
         return torch.sigmoid(self.out(hidden))

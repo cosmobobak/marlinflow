@@ -32,8 +32,8 @@ trait Format {
     ) -> Result<()>;
 }
 
-struct MFLegacy;
-impl Format for MFLegacy {
+struct Legacy;
+impl Format for Legacy {
     fn write_into(
         board: &Board,
         cp: i16,
@@ -80,7 +80,7 @@ pub fn run(options: Options) -> Result<()> {
     let mut output = BufWriter::new(File::create(options.output)?);
 
     match options.format.as_str() {
-        "legacy" => conversion_loop::<MFLegacy>(count, &mut reader, &mut output)?,
+        "legacy" => conversion_loop::<Legacy>(count, &mut reader, &mut output)?,
         "cudad" => conversion_loop::<Cudad>(count, &mut reader, &mut output)?,
         _ => panic!(
             "unknown format {}, valid formats are legacy and cudad",

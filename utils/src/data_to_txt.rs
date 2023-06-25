@@ -32,8 +32,8 @@ trait Format {
     ) -> Result<()>;
 }
 
-struct MarlinformatLegacy;
-impl Format for MarlinformatLegacy {
+struct MFLegacy;
+impl Format for MFLegacy {
     fn write_into(
         board: &Board,
         cp: i16,
@@ -80,12 +80,10 @@ pub fn run(options: Options) -> Result<()> {
     let mut output = BufWriter::new(File::create(options.output)?);
 
     match options.format.as_str() {
-        "marlinformat-legacy" => {
-            conversion_loop::<MarlinformatLegacy>(count, &mut reader, &mut output)?
-        }
+        "legacy" => conversion_loop::<MFLegacy>(count, &mut reader, &mut output)?,
         "cudad" => conversion_loop::<Cudad>(count, &mut reader, &mut output)?,
         _ => panic!(
-            "unknown format {}, valid formats are marlinformat-legacy and cudad",
+            "unknown format {}, valid formats are legacy and cudad",
             options.format
         ),
     }

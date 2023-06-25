@@ -43,6 +43,7 @@ def train(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     dataloader: BatchLoader,
+    scheduler: torch.optim.lr_scheduler.StepLR,
     wdl: float,
     scale: float,
     epochs: int,
@@ -66,8 +67,6 @@ def train(
         new_epoch, batch = dataloader.read_batch(DEVICE)
         if new_epoch:
             epoch += 1
-            if epoch == lr_drop:
-                optimizer.param_groups[0]["lr"] *= 0.1
             print(
                 f"epoch {epoch}",
                 f"epoch train loss: {running_loss.item() / iterations}",
@@ -88,6 +87,7 @@ def train(
                 }
                 with open(f"nn/{train_id}.json", "w") as json_file:
                     json.dump(param_map, json_file)
+            scheduler.step()
 
 
         optimizer.zero_grad()
@@ -158,7 +158,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = SquaredPerspectiveNet(768).to(DEVICE)
+    model = HalfKANet(384).to(DEVICE)
     if args.resume is not None:
         model.load_state_dict(torch.load(args.resume))
 
@@ -168,10 +168,13 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
 
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25, gamma=0.1)
+
     train(
         model,
         optimizer,
         dataloader,
+        scheduler,
         args.wdl,
         args.scale,
         args.epochs,

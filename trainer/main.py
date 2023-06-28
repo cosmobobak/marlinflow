@@ -158,7 +158,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = HalfKANet(384).to(DEVICE)
+    model = HalfKANet(768).to(DEVICE)
     if args.resume is not None:
         model.load_state_dict(torch.load(args.resume))
 

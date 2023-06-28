@@ -20,6 +20,9 @@ pub struct Options {
 
     #[structopt(short, long)]
     format: String,
+
+    #[structopt(short, long)]
+    limit: Option<u64>,
 }
 
 trait Format {
@@ -74,6 +77,7 @@ pub fn run(options: Options) -> Result<()> {
     let size_bytes = data.seek(SeekFrom::End(0))?;
     data.seek(SeekFrom::Start(0))?;
     let count = size_bytes / std::mem::size_of::<PackedBoard>() as u64;
+    let count = options.limit.map_or(count, |limit| limit.min(count));
 
     let mut reader = BufReader::new(data);
 
@@ -96,17 +100,17 @@ fn conversion_loop<F: Format>(
     reader: &mut impl Read,
     output: &mut impl Write,
 ) -> Result<()> {
-    print!("at {}/{}\r", 0, count);
+    print!("at 0/{count}\r");
     for pos in 0..count {
         let mut value = PackedBoard::zeroed();
         reader.read_exact(bytemuck::bytes_of_mut(&mut value))?;
         let (board, cp, wdl, extra) = value.unpack().expect("invalid board");
         F::write_into(&board, cp, wdl, extra, output)?;
         if pos % 1000 == 0 {
-            print!("at {}/{}\r", pos, count);
+            print!("at {pos}/{count}\r");
         }
     }
-    println!("at {}/{}", count, count);
+    println!("at {count}/{count}");
 
     Ok(())
 }

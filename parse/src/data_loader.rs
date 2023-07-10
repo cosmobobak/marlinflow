@@ -90,7 +90,7 @@ impl Iterator for FileReader {
             if let Some(board) = self.next_from_buffer() {
                 return Some(board);
             }
-            if !self.try_fill_buffer(32_000) {
+            if !self.try_fill_buffer(512_000) {
                 return None;
             }
         }

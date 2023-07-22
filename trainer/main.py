@@ -43,13 +43,12 @@ def train(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     dataloader: BatchLoader,
-    scheduler: torch.optim.lr_scheduler.ExponentialLR,
+    scheduler: torch.optim.lr_scheduler._LRScheduler,
     wdl: float,
     scale: float,
     epochs: int,
     save_epochs: int,
     train_id: str,
-    lr_drop: int | None = None,
     train_log: TrainLog | None = None,
 ) -> None:
     clipper = WeightClipper()
@@ -130,9 +129,11 @@ def main():
     parser.add_argument("--train-id", type=str, help="ID to save train logs with")
     parser.add_argument("--lr", type=float, help="Initial learning rate")
     parser.add_argument("--lr-end", type=float, help="Final learning rate")
+    parser.add_argument("--lr-drop", type=int, help="Epoch to drop LR at for step LR")
     parser.add_argument("--epochs", type=int, help="Epochs to train for")
     parser.add_argument("--batch-size", type=int, default=16384, help="Batch size")
     parser.add_argument("--wdl", type=float, default=0.0, help="WDL weight to be used")
+    parser.add_argument("--wdl-drop", type=float, help="WDL weight to use after drop")
     parser.add_argument("--scale", type=float, help="WDL weight to be used")
     parser.add_argument(
         "--save-epochs",
@@ -153,7 +154,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = HalfKANet(768).to(DEVICE)
+    model = SquaredPerspectiveNet(768).to(DEVICE)
     if args.resume is not None:
         model.load_state_dict(torch.load(args.resume))
 
@@ -163,12 +164,19 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
 
-    # starting LR is args.lr, ending LR is args.lr_end
-    # there are args.epochs epochs
-    # so the LR should drop by a factor of (args.lr_end / args.lr) ** (1 / args.epochs) each epoch
-    gamma = (args.lr_end / args.lr) ** (1 / args.epochs)
+    scheduler: torch.optim.lr_scheduler._LRScheduler
+    if args.lr_end is not None:
+        # starting LR is args.lr, ending LR is args.lr_end
+        # there are args.epochs epochs
+        # so the LR should drop by a factor of (args.lr_end / args.lr) ** (1 / args.epochs) each epoch
+        gamma = (args.lr_end / args.lr) ** (1 / args.epochs)
 
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+    elif args.lr_drop is not None:
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop, gamma=0.1)
+    else:
+        print("No learning rate schedule specified, using constant LR")
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=1.0)
 
     train(
         model,

@@ -45,11 +45,13 @@ def train(
     dataloader: BatchLoader,
     scheduler: torch.optim.lr_scheduler._LRScheduler,
     wdl: float,
+    wdl_drop: float | None,
     scale: float,
     epochs: int,
     save_epochs: int,
     train_id: str,
     train_log: TrainLog | None = None,
+    lr_drop: int | None = None,
 ) -> None:
     clipper = WeightClipper()
     running_loss = torch.zeros((1,), device=DEVICE)
@@ -87,7 +89,8 @@ def train(
                 with open(f"nn/{train_id}.json", "w") as json_file:
                     json.dump(param_map, json_file)
             scheduler.step()
-
+            if lr_drop is not None and wdl_drop is not None and epoch == lr_drop:
+                wdl = wdl_drop
 
         optimizer.zero_grad()
         prediction = model(batch)
@@ -184,11 +187,13 @@ def main():
         dataloader,
         scheduler,
         args.wdl,
+        args.wdl_drop,
         args.scale,
         args.epochs,
         args.save_epochs,
         args.train_id,
         train_log=train_log,
+        lr_drop=args.lr_drop,
     )
 
 

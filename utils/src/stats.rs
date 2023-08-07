@@ -25,10 +25,24 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     let mut pieces_on_board_by_type = [0; 6];
     let mut movecount = [0; 2048];
     let mut win_draw_loss = [0; 3];
+
+    let is_significantly_incongruent = |cp_eval: i32, wdl: u8| -> bool {
+        let wdl = wdl as i32 - 1; // 1 = win, 0 = draw, -1 = loss
+        match () {
+            _ if cp_eval > 200 && wdl == -1 => true, // winning eval but loss
+            _ if cp_eval < -200 && wdl == 1 => true, // losing eval but win
+            _ if cp_eval.abs() > 400 && wdl == 0 => true, // large eval but draw
+            _ => false,
+        }
+    };
+
+    let mut incongruent = 0;
+    let mut extremely_large_eval = 0;
+
     while count != 0 {
         let mut value = PackedBoard::zeroed();
         reader.read_exact(bytemuck::bytes_of_mut(&mut value))?;
-        let (board, _eval, wdl, _extra) = value.unpack().expect("invalid board");
+        let (board, eval, wdl, _extra) = value.unpack().expect("invalid board");
         let wk_pos = board.king(Color::White);
         let bk_pos = board.king(Color::Black);
         white_king_positions[wk_pos as usize] += 1;
@@ -40,6 +54,8 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
         }
         movecount[board.fullmove_number() as usize] += 1;
         win_draw_loss[wdl as usize] += 1;
+        incongruent += is_significantly_incongruent(i32::from(eval), wdl) as u64;
+        extremely_large_eval += (eval.abs() > i16::MAX - 200) as u64;
         count -= 1;
         if count & 0xFFFFF == 0 {
             let progress = positions - count;
@@ -100,6 +116,10 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     let idx_sq = Square::index(idx);
     let pcnt = *min as f64 / positions as f64 * 100.0;
     println!("  Least: {} on {} ({:.3}%)", min, idx_sq, pcnt);
+
+    println!("Data health metrics:");
+    println!("  Number of positions where eval and WDL are significantly incongruent: {} ({:.3}%)", incongruent, incongruent as f64 / positions as f64 * 100.0);
+    println!("  Number of positions where eval is extremely large: {} ({:.3}%)", extremely_large_eval, extremely_large_eval as f64 / positions as f64 * 100.0);
 
     Ok(())
 }

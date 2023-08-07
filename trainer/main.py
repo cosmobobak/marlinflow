@@ -7,10 +7,10 @@ import pathlib
 
 from dataloader import BatchLoader
 from model import (
-    NnBoard768Cuda,
+    SquaredPerspectiveNetCuda,
     PerspectiveNet,
     HalfKANet,
-    NnHalfKACuda,
+    HalfKANetCuda,
     HalfKPNet,
     NnHalfKPCuda,
     SquaredPerspectiveNet,
@@ -133,6 +133,7 @@ def main():
     parser.add_argument("--lr", type=float, help="Initial learning rate")
     parser.add_argument("--lr-end", type=float, help="Final learning rate")
     parser.add_argument("--lr-drop", type=int, help="Epoch to drop LR at for step LR")
+    parser.add_argument("--lr-drop-gamma", type=float, default=0.1, help="Gamma for exponential LR")
     parser.add_argument("--epochs", type=int, help="Epochs to train for")
     parser.add_argument("--batch-size", type=int, default=16384, help="Batch size")
     parser.add_argument("--wdl", type=float, default=0.0, help="WDL weight to be used")
@@ -157,7 +158,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = SquaredPerspectiveNet(768).to(DEVICE)
+    model = HalfKANet(768).to(DEVICE)
     if args.resume is not None:
         model.load_state_dict(torch.load(args.resume))
 
@@ -176,7 +177,10 @@ def main():
 
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
     elif args.lr_drop is not None:
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop, gamma=0.1)
+        print(f"Using step LR with drop at epoch {args.lr_drop}")
+        print(f"LR will drop by a factor of {args.lr_drop_gamma} each drop")
+        assert args.lr_drop_gamma is not None, "Must specify gamma for step LR"
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop, gamma=args.lr_drop_gamma)
     else:
         print("No learning rate schedule specified, using constant LR")
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=1.0)

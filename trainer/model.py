@@ -198,13 +198,13 @@ class HalfKANet(torch.nn.Module):
         return InputFeatureSet.HALF_KA
 
 
-class NnBoard768Cuda(torch.nn.Module):
+class SquaredPerspectiveNetCuda(torch.nn.Module):
     def __init__(self, ft_out: int):
         from cudasparse import DoubleFeatureTransformerSlice
 
         super().__init__()
         self.max_features = InputFeatureSet.BOARD_768_CUDA.max_features()
-        self.ft = DoubleFeatureTransformerSlice(768, ft_out)
+        self.perspective = DoubleFeatureTransformerSlice(768, ft_out)
         self.out = torch.nn.Linear(ft_out * 2, 1)
 
     def forward(self, batch: Batch):
@@ -215,7 +215,7 @@ class NnBoard768Cuda(torch.nn.Module):
         nstm_indices = batch.nstm_indices.reshape(-1, self.max_features).type(
             dtype=torch.int32
         )
-        stm_ft, nstm_ft = self.ft(
+        stm_ft, nstm_ft = self.perspective(
             stm_indices,
             values,
             nstm_indices,
@@ -223,6 +223,7 @@ class NnBoard768Cuda(torch.nn.Module):
         )
 
         hidden = torch.clamp(torch.cat((stm_ft, nstm_ft), dim=1), 0, 1)
+        hidden = hidden * hidden
 
         return torch.sigmoid(self.out(hidden))
 
@@ -268,14 +269,14 @@ class NnHalfKPCuda(torch.nn.Module):
         return InputFeatureSet.HALF_KP_CUDA
 
 
-class NnHalfKACuda(torch.nn.Module):
+class HalfKANetCuda(torch.nn.Module):
     def __init__(self, ft_out: int):
         super().__init__()
         from cudasparse import DoubleFeatureTransformerSlice
 
         self.max_features = InputFeatureSet.HALF_KA_CUDA.max_features()
-        self.ft = DoubleFeatureTransformerSlice(49152, ft_out)
-        self.fft = DoubleFeatureTransformerSlice(768, ft_out)
+        self.perspective = DoubleFeatureTransformerSlice(49152, ft_out)
+        self.factoriser = DoubleFeatureTransformerSlice(768, ft_out)
         self.out = torch.nn.Linear(ft_out * 2, 1)
 
     def forward(self, batch: Batch):
@@ -286,19 +287,20 @@ class NnHalfKACuda(torch.nn.Module):
         nstm_indices = batch.nstm_indices.reshape(-1, self.max_features).type(
             dtype=torch.int32
         )
-        stm_ft, nstm_ft = self.ft(
+        stm_ft, nstm_ft = self.perspective(
             stm_indices,
             values,
             nstm_indices,
             values,
         )
-        v_stm_ft, v_nstm_ft = self.fft(
+        v_stm_ft, v_nstm_ft = self.factoriser(
             stm_indices.fmod(768), values, nstm_indices.fmod(768), values
         )
 
         hidden = torch.clamp(
             torch.cat((stm_ft + v_stm_ft, nstm_ft + v_nstm_ft), dim=1), 0, 1
         )
+        hidden = hidden * hidden
 
         return torch.sigmoid(self.out(hidden))
 

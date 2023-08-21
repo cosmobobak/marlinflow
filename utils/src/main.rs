@@ -7,6 +7,8 @@ mod txt_to_data;
 mod data_to_txt;
 mod count;
 mod stats;
+mod tablebases;
+mod rescore;
 
 #[derive(StructOpt)]
 pub enum Options {
@@ -17,6 +19,7 @@ pub enum Options {
     DataToTxt(data_to_txt::Options),
     Count(count::Options),
     Stats(stats::Options),
+    Rescore(rescore::Options),
 }
 
 fn main() {
@@ -28,5 +31,6 @@ fn main() {
         Options::DataToTxt(options) => data_to_txt::run(options).unwrap(),
         Options::Count(options) => count::run(options).unwrap(),
         Options::Stats(options) => stats::run(options).unwrap(),
+        Options::Rescore(options) => rescore::run(options).unwrap(),
     }
 }

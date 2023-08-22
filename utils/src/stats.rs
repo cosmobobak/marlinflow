@@ -18,7 +18,7 @@ pub struct Options {
     tb_path: Option<std::path::PathBuf>,
 }
 
-pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(options: Options) -> anyhow::Result<()> {
     #[cfg(feature = "syzygy")]
     if let Some(tb_path) = &options.tb_path {
         tablebases::probe::init(tb_path.to_str().unwrap());

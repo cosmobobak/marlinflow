@@ -1,11 +1,8 @@
-use std::io::{Read, Seek, SeekFrom, Write};
 
-use bytemuck::Zeroable;
+use anyhow::Context;
 use marlinformat::PackedBoard;
 use memmap::MmapMut;
 use structopt::StructOpt;
-
-use cozy_chess::{Color, Square};
 
 use crate::tablebases;
 
@@ -24,20 +21,28 @@ unsafe fn mmap_into_slice_mut_with_lifetime<T>(mmap: &mut MmapMut) -> &mut [T] {
     )
 }
 
-pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(options: Options) -> anyhow::Result<()> {
     // Initialize tablebases
-    tablebases::probe::init(options.tb_path.to_str().unwrap());
+    tablebases::probe::init(
+        options.tb_path.to_str().with_context(|| "Failed to convert tb_path to str")?,
+    );
     // Open the dataset
-    let dataset = std::fs::File::open(options.dataset)?;
+    let dataset = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(options.dataset)
+        .with_context(|| "Failed to open dataset")?;
     // mmap the dataset
-    let mut mmap = unsafe { memmap::MmapMut::map_mut(&dataset)? };
+    let mut mmap = unsafe { 
+        memmap::MmapMut::map_mut(&dataset).with_context(|| "Failed to mmap dataset")?
+    };
     // Get a slice of the dataset
     let positions = unsafe {
         mmap_into_slice_mut_with_lifetime::<PackedBoard>(&mut mmap)
     };
     for position in positions.iter_mut() {
         // unpack the position
-        let (board, eval, wdl, extra) = position.unpack().expect("Failed to unpack position");
+        let (board, eval, wdl, extra) = position.unpack().with_context(|| "Failed to unpack position")?;
         // probe
         if let Some(tb_wdl) = tablebases::probe::get_wdl_white(&board) {
             let tb_wdl = match tb_wdl {

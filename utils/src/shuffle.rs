@@ -28,7 +28,7 @@ pub struct Options {
     group_size: u64,
 }
 
-pub fn run(options: Options) -> Result<()> {
+pub fn run(options: Options) -> anyhow::Result<()> {
     let output = options.output.unwrap_or_else(|| options.dataset.clone());
     let output_dir = output
         .parent()

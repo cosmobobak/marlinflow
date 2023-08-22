@@ -6,13 +6,25 @@ use structopt::StructOpt;
 
 use cozy_chess::{Color, Square};
 
+#[cfg(feature = "syzygy")]
+use crate::tablebases;
+
 #[derive(StructOpt)]
 /// Report statistics about a dataset
 pub struct Options {
     dataset: std::path::PathBuf,
+    #[cfg(feature = "syzygy")]
+    #[structopt(long)]
+    tb_path: Option<std::path::PathBuf>,
 }
 
-pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(options: Options) -> anyhow::Result<()> {
+    #[cfg(feature = "syzygy")]
+    if let Some(tb_path) = &options.tb_path {
+        tablebases::probe::init(tb_path.to_str().unwrap());
+        println!("[WARNING] Syzygy probing enabled. This will be slooooow.");
+    }
+
     let mut dataset = std::fs::File::open(options.dataset)?;
     let size_bytes = dataset.seek(SeekFrom::End(0))?;
     dataset.seek(SeekFrom::Start(0))?;
@@ -38,6 +50,12 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut incongruent = 0;
     let mut extremely_large_eval = 0;
+    #[cfg(feature = "syzygy")]
+    let mut incorrect_syzygy = 0;
+    #[cfg(feature = "syzygy")]
+    let mut tb_hits = 0;
+
+    let start_time = std::time::Instant::now();
 
     while count != 0 {
         let mut value = PackedBoard::zeroed();
@@ -57,10 +75,30 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
         incongruent += is_significantly_incongruent(i32::from(eval), wdl) as u64;
         extremely_large_eval += (eval.abs() > i16::MAX - 200) as u64;
         count -= 1;
+        #[cfg(feature = "syzygy")]
+        if options.tb_path.is_some() {
+            if let Some(tb_wdl) = tablebases::probe::get_wdl_white(&board) {
+                tb_hits += 1;
+                let tb_wdl = match tb_wdl {
+                    tablebases::probe::WDL::Win => 1,
+                    tablebases::probe::WDL::Draw => 0,
+                    tablebases::probe::WDL::Loss => -1,
+                };
+                if tb_wdl != wdl as i8 - 1 {
+                    incorrect_syzygy += 1;
+                }
+            }
+        }
         if count & 0xFFFFF == 0 {
             let progress = positions - count;
             let proportion = progress as f64 / positions as f64;
-            print!("\r\x1B[K{progress:12}/{positions} ({:4.1}%)", proportion * 100.0);
+            let elapsed = start_time.elapsed();
+            let elapsed = elapsed.as_secs() as f64 + elapsed.subsec_nanos() as f64 * 1e-9;
+            let time_per_position = elapsed / progress as f64;
+            let time_left = time_per_position * count as f64;
+            let minutes = (time_left / 60.0) as u64;
+            let seconds = (time_left - minutes as f64 * 60.0) as u64;
+            print!("\r\x1B[K{progress:12}/{positions} ({:4.1}%), estimated time left: {minutes}m {seconds}s", proportion * 100.0);
             let _ = std::io::stdout().flush();
         }
     }
@@ -120,6 +158,16 @@ pub fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     println!("Data health metrics:");
     println!("  Number of positions where eval and WDL are significantly incongruent: {} ({:.3}%)", incongruent, incongruent as f64 / positions as f64 * 100.0);
     println!("  Number of positions where eval is extremely large: {} ({:.3}%)", extremely_large_eval, extremely_large_eval as f64 / positions as f64 * 100.0);
+    #[cfg(feature = "syzygy")]
+    {
+        if options.tb_path.is_some() {
+            println!("  Number of Syzygy tablebase hits: {} ({:.3}%)", tb_hits, tb_hits as f64 / positions as f64 * 100.0);
+            println!("  Number of positions where Syzygy tablebase disagrees with game outcome: {} ({:.3}%)", incorrect_syzygy, incorrect_syzygy as f64 / positions as f64 * 100.0);
+            println!("  Fraction of hits where Syzygy tablebase disagrees with game outcome: {} / {} ({:.3}%)", incorrect_syzygy, tb_hits, incorrect_syzygy as f64 / tb_hits as f64 * 100.0);
+        } else {
+            println!("  Syzygy tablebase path not specified, no Syzygy tablebase metrics available");
+        }
+    }
 
     Ok(())
 }

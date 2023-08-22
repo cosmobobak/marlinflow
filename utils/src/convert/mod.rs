@@ -1,7 +1,7 @@
 mod halfkp;
 mod utils;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, convert::Infallible};
 
 use halfkp::HalfKp;
 use structopt::StructOpt;
@@ -15,10 +15,12 @@ pub struct Options {
     output: PathBuf,
 }
 
-pub fn run(options: Options) {
+pub fn run(options: Options) -> Result<(), Infallible> {
     let content = std::fs::read(options.path).unwrap();
 
     let arch = HalfKp::from(&content);
     let bin = arch.to_bin(255.0, 64.0);
     std::fs::write(options.output, bin).unwrap();
+
+    Ok(())
 }

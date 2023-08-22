@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Result, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::PathBuf;
 
 use cozy_chess::Board;
@@ -15,7 +15,7 @@ pub struct Options {
     txt_file: PathBuf,
 }
 
-pub fn run(options: Options) -> Result<()> {
+pub fn run(options: Options) -> anyhow::Result<()> {
     let input = BufReader::new(File::open(options.txt_file)?);
     let mut output = BufWriter::new(File::create(options.output)?);
 

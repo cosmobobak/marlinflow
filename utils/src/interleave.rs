@@ -18,7 +18,7 @@ pub struct Options {
     files: Vec<PathBuf>,
 }
 
-pub fn run(options: Options) -> Result<()> {
+pub fn run(options: Options) -> anyhow::Result<()> {
     let mut files: Vec<_> = options
         .files
         .iter()

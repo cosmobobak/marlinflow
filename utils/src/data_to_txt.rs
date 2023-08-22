@@ -72,7 +72,7 @@ impl Format for Cudad {
     }
 }
 
-pub fn run(options: Options) -> Result<()> {
+pub fn run(options: Options) -> anyhow::Result<()> {
     let mut data = std::fs::File::open(options.data_file)?;
     let size_bytes = data.seek(SeekFrom::End(0))?;
     data.seek(SeekFrom::Start(0))?;

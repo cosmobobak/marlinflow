@@ -46,13 +46,13 @@ pub fn run(options: Options) -> anyhow::Result<()> {
         // probe
         if let Some(tb_wdl) = tablebases::probe::get_wdl_white(&board) {
             let tb_wdl = match tb_wdl {
-                tablebases::probe::WDL::Win => 1,
-                tablebases::probe::WDL::Draw => 0,
-                tablebases::probe::WDL::Loss => -1,
+                tablebases::probe::WDL::Win => 2,
+                tablebases::probe::WDL::Draw => 1,
+                tablebases::probe::WDL::Loss => 0,
             };
-            if tb_wdl != wdl as i8 - 1 {
+            if tb_wdl != wdl {
                 // update the position
-                *position = PackedBoard::pack(&board, eval, tb_wdl as u8 + 1, extra);
+                *position = PackedBoard::pack(&board, eval, tb_wdl, extra);
             }
         }
     }

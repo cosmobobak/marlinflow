@@ -54,6 +54,9 @@ def train(
     lr_drop: int | None = None,
 ) -> None:
     clipper = WeightClipper()
+    l1_loss = torch.nn.L1Loss()
+    l1_lambda = 1e-2
+
     running_loss = torch.zeros((1,), device=DEVICE)
     start_time = time()
     iterations = 0
@@ -96,7 +99,10 @@ def train(
         prediction = model(batch)
         expected = torch.sigmoid(batch.cp / scale) * (1 - wdl) + batch.wdl * wdl
 
-        loss = torch.mean((prediction - expected) ** 2)
+        mse_loss = torch.mean((prediction - expected) ** 2)
+        l1_reg = l1_loss(torch.zeros_like(prediction), prediction)
+
+        loss = mse_loss + l1_lambda * l1_reg
         loss.backward()
         optimizer.step()
         model.apply(clipper)

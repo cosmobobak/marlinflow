@@ -15,6 +15,7 @@ from model import (
     NnHalfKPCuda,
     SquaredPerspectiveNet,
     DeepPerspectiveNet,
+    Test,
 )
 from time import time
 
@@ -54,8 +55,6 @@ def train(
     lr_drop: int | None = None,
 ) -> None:
     clipper = WeightClipper()
-    l1_loss = torch.nn.L1Loss()
-    l1_lambda = 1e-2
 
     running_loss = torch.zeros((1,), device=DEVICE)
     start_time = time()
@@ -100,9 +99,8 @@ def train(
         expected = torch.sigmoid(batch.cp / scale) * (1 - wdl) + batch.wdl * wdl
 
         mse_loss = torch.mean((prediction - expected) ** 2)
-        l1_reg = l1_loss(torch.zeros_like(prediction), prediction)
 
-        loss = mse_loss + l1_lambda * l1_reg
+        loss = mse_loss
         loss.backward()
         optimizer.step()
         model.apply(clipper)
@@ -139,7 +137,7 @@ def main():
     parser.add_argument("--lr", type=float, help="Initial learning rate")
     parser.add_argument("--lr-end", type=float, help="Final learning rate")
     parser.add_argument("--lr-drop", type=int, help="Epoch to drop LR at for step LR")
-    parser.add_argument("--lr-drop-gamma", type=float, default=0.1, help="Gamma for exponential LR")
+    parser.add_argument("--lr-drop-gamma", type=float, default=0.1, help="Gamma for step LR")
     parser.add_argument("--epochs", type=int, help="Epochs to train for")
     parser.add_argument("--batch-size", type=int, default=16384, help="Batch size")
     parser.add_argument("--wdl", type=float, default=0.0, help="WDL weight to be used")
@@ -164,7 +162,7 @@ def main():
 
     train_log = TrainLog(args.train_id)
 
-    model = SquaredPerspectiveNet(768).to(DEVICE)
+    model = SquaredPerspectiveNet(1024).to(DEVICE)
     if args.resume is not None:
         model.load_state_dict(torch.load(args.resume))
 

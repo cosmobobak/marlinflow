@@ -28,6 +28,7 @@ pub fn run(options: Options) -> anyhow::Result<()> {
             .to_str()
             .with_context(|| "Failed to convert tb_path to str")?,
     );
+    println!("Highest Syzygy cardinality found: {}", tablebases::probe::get_max_pieces_count());
     // Open the dataset
     let dataset = std::fs::OpenOptions::new()
         .read(true)

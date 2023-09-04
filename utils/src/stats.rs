@@ -172,6 +172,7 @@ pub fn run(options: Options) -> anyhow::Result<()> {
             #[cfg(feature = "syzygy")]
             tablebases::probe::init(tb_path.to_str().unwrap());
             println!("[WARNING] Syzygy probing enabled. This will be slooooow.");
+            println!("Highest Syzygy cardinality found: {}", tablebases::probe::get_max_pieces_count());
             #[cfg(not(feature = "syzygy"))]
             let _ = tb_path;
         }

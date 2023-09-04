@@ -1,14 +1,17 @@
-use std::{sync::atomic::AtomicU64, thread::ScopedJoinHandle};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    sync::atomic::AtomicU64,
+    thread::ScopedJoinHandle,
+};
 
 use anyhow::Context;
 use marlinformat::PackedBoard;
 use memmap::Mmap;
 use structopt::StructOpt;
 
-use cozy_chess::{Color, Square};
+use cozy_chess::{Board, Color, Piece, Square};
 
-use crate::tablebases;
-#[cfg(feature = "syzygy")]
 use crate::tablebases;
 
 #[derive(StructOpt)]
@@ -17,6 +20,72 @@ pub struct Options {
     dataset: std::path::PathBuf,
     tb_path: Option<std::path::PathBuf>,
     threads: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+struct MaterialConfiguration {
+    counts: [u8; 10],
+}
+
+impl MaterialConfiguration {
+    fn men(&self) -> u8 {
+        self.counts.iter().sum::<u8>() + 2 // add 2 for the kings
+    }
+}
+
+impl Display for MaterialConfiguration {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        static CHARS: [char; 5] = ['P', 'N', 'B', 'R', 'Q'];
+        // output strings like KRPPvKRP or KQvKRP
+        write!(f, "K")?;
+        for (i, pc) in self.counts[..5].iter().enumerate().rev() {
+            for _ in 0..*pc {
+                write!(f, "{}", CHARS[i])?;
+            }
+        }
+        write!(f, "vK")?;
+        for (i, pc) in self.counts[5..].iter().enumerate().rev() {
+            for _ in 0..*pc {
+                write!(f, "{}", CHARS[i])?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl From<Board> for MaterialConfiguration {
+    fn from(board: Board) -> Self {
+        let mut mc = Self::default();
+        let white = board.colors(Color::White);
+        let black = board.colors(Color::Black);
+        for piece in Piece::ALL.into_iter().take(5) {
+            let pieces = board.pieces(piece);
+            let white_pieces = pieces & white;
+            let black_pieces = pieces & black;
+            mc.counts[piece as usize] = white_pieces.len() as u8;
+            mc.counts[piece as usize + 5] = black_pieces.len() as u8;
+        }
+        // normalize the counts so that the white side has more material than the black side
+        let ordering_key = |subslice: &[u8]| -> u64 {
+            let count = subslice.iter().sum::<u8>() as u64;
+            let highest_piece = subslice
+                .iter()
+                .enumerate()
+                .filter(|(_, v)| **v > 0)
+                .last()
+                .unwrap_or((0, &0))
+                .0;
+            count * 10 + highest_piece as u64
+        };
+        let (white, black) = mc.counts.split_at_mut(5);
+        let white_key = ordering_key(white);
+        let black_key = ordering_key(black);
+        if black_key > white_key {
+            // swap the counts
+            white.swap_with_slice(black);
+        }
+        mc
+    }
 }
 
 struct Stats {
@@ -30,6 +99,7 @@ struct Stats {
     extremely_large_eval: u64,
     incorrect_syzygy: u64,
     tb_hits: u64,
+    endgames: HashMap<MaterialConfiguration, u64>,
 }
 
 impl Default for Stats {
@@ -45,6 +115,7 @@ impl Default for Stats {
             extremely_large_eval: Default::default(),
             incorrect_syzygy: Default::default(),
             tb_hits: Default::default(),
+            endgames: Default::default(),
         }
     }
 }
@@ -79,6 +150,9 @@ impl std::ops::AddAssign for Stats {
         self.extremely_large_eval += rhs.extremely_large_eval;
         self.incorrect_syzygy += rhs.incorrect_syzygy;
         self.tb_hits += rhs.tb_hits;
+        for (k, v) in rhs.endgames.into_iter() {
+            *self.endgames.entry(k).or_default() += v;
+        }
     }
 }
 
@@ -91,6 +165,9 @@ pub fn run(options: Options) -> anyhow::Result<()> {
     if let Some(tb_path) = &options.tb_path {
         if cfg!(not(feature = "syzygy")) {
             println!("[WARNING] Syzygy probing requested but not enabled. Ignoring.");
+        } else if !tb_path.exists() {
+            // warn if the path doesn't exist
+            println!("[WARNING] Syzygy probing requested but the path doesn't exist. Ignoring.");
         } else {
             #[cfg(feature = "syzygy")]
             tablebases::probe::init(tb_path.to_str().unwrap());
@@ -148,7 +225,7 @@ pub fn run(options: Options) -> anyhow::Result<()> {
                 let mut stats = Stats::default();
                 if i == 0 {
                     print!(
-                        "Rescoring positions: {:w$}/{} (  0.00%)",
+                        "Examining positions: {:w$}/{} (  0.00%)",
                         0,
                         total_positions,
                         w = digit_width
@@ -187,17 +264,23 @@ pub fn run(options: Options) -> anyhow::Result<()> {
                             }
                         }
                     }
+
+                    if piece_count <= 6 {
+                        let mc = MaterialConfiguration::from(board);
+                        *stats.endgames.entry(mc).or_default() += 1;
+                    }
+
                     // update progress in batches -
                     // all threads add to the counter, but only one prints.
-                    if p_idx % 1024 == 0 {
-                        processed_ref.fetch_add(1024, std::sync::atomic::Ordering::Relaxed);
+                    if p_idx % 32768 == 0 {
+                        processed_ref.fetch_add(32768, std::sync::atomic::Ordering::Relaxed);
                         if i == 0 {
                             // we're the main thread, print progress
                             let processed =
                                 processed_ref.load(std::sync::atomic::Ordering::Relaxed);
                             let percent = (processed as f64 / total_positions as f64) * 100.0;
                             print!(
-                                "\rRescoring positions: {:w$}/{} ({:6.2}%)",
+                                "\rExamining positions: {:w$}/{} ({:6.2}%)",
                                 processed,
                                 total_positions,
                                 percent,
@@ -219,7 +302,10 @@ pub fn run(options: Options) -> anyhow::Result<()> {
         Ok::<_, anyhow::Error>(stats_accumulator)
     })?;
     // update the progress bar to 100%
-    println!("\rRescoring positions: {}/{} (100.00%)", total_positions, total_positions);
+    println!(
+        "\rExamining positions: {}/{} (100.00%)",
+        total_positions, total_positions
+    );
 
     println!();
     println!("{} positions", count);
@@ -346,6 +432,32 @@ pub fn run(options: Options) -> anyhow::Result<()> {
                 "  Syzygy tablebase path not specified, no Syzygy tablebase metrics available"
             );
         }
+    }
+    println!("Endgame statistics (Most to least common):");
+    let mut endgame_stats = stats.endgames.into_iter().collect::<Vec<_>>();
+    endgame_stats.sort_unstable_by_key(|(_, v)| std::cmp::Reverse(*v));
+    let mut six_men = Vec::new();
+    let mut five_men = Vec::new();
+    let mut four_men = Vec::new();
+    let mut three_men = Vec::new();
+    for (mc, eg_count) in endgame_stats {
+        match mc.men() {
+            6 => six_men.push((mc, eg_count)),
+            5 => five_men.push((mc, eg_count)),
+            4 => four_men.push((mc, eg_count)),
+            3 => three_men.push((mc, eg_count)),
+            _ => unreachable!(),
+        }
+    }
+    println!("Six-man endgames (top 20):");
+    for (mc, eg_count) in six_men.into_iter().take(20) {
+        let pcnt = eg_count as f64 / count as f64 * 100.0;
+        println!("    {}: {} ({:.3}%)", mc, eg_count, pcnt);
+    }
+    println!("Five-man endgames (top 20):");
+    for (mc, eg_count) in five_men.into_iter().take(20) {
+        let pcnt = eg_count as f64 / count as f64 * 100.0;
+        println!("    {}: {} ({:.3}%)", mc, eg_count, pcnt);
     }
 
     Ok(())

@@ -128,6 +128,44 @@ pub fn get_root_wdl_dtz(board: &Board) -> Option<WdlDtzResult> {
     None
 }
 
+/// Gets WDL (Win-Draw-Loss) only for the position specified in `board`.
+/// Returns [None] if data couldn't be obtained or the feature is disabled.
+fn get_root_wdl(board: &Board) -> Option<WDL> {
+    #[cfg(feature = "syzygy")]
+    unsafe {
+        let result = tb_probe_root(
+            board.colors(Color::White).0,
+            board.colors(Color::Black).0,
+            board.pieces(Piece::King).0,
+            board.pieces(Piece::Queen).0,
+            board.pieces(Piece::Rook).0,
+            board.pieces(Piece::Bishop).0,
+            board.pieces(Piece::Knight).0,
+            board.pieces(Piece::Pawn).0,
+            u32::from(board.halfmove_clock()),
+            0,
+            0,
+            board.side_to_move() == Color::White,
+            ptr::null_mut(),
+        );
+
+        let wdl = (result & TB_RESULT_WDL_MASK) >> TB_RESULT_WDL_SHIFT;
+        let wdl = match wdl {
+            TB_WIN => WDL::Win,
+            TB_LOSS => WDL::Loss,
+            _ => WDL::Draw,
+        };
+
+        if result == TB_RESULT_FAILED {
+            return None;
+        }
+
+        Some(wdl)
+    }
+    #[cfg(not(feature = "syzygy"))]
+    None
+}
+
 /// Checks if there's a tablebase move and returns it as [Some], otherwise [None].
 pub fn get_tablebase_move(board: &Board) -> Option<(Move, i32)> {
     if board.occupied().len() > get_max_pieces_count() as usize {
@@ -152,11 +190,11 @@ pub fn get_wdl_white(board: &Board) -> Option<WDL> {
         return None;
     }
 
-    let probe_result = get_root_wdl_dtz(board)?;
+    let probe_result = get_root_wdl(board)?;
 
     let stm = board.side_to_move() == Color::White;
 
-    match probe_result.wdl {
+    match probe_result {
         WDL::Win => Some(if stm { WDL::Win } else { WDL::Loss }),
         WDL::Draw => Some(WDL::Draw),
         WDL::Loss => Some(if stm { WDL::Loss } else { WDL::Win }),
